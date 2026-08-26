@@ -30,7 +30,7 @@
   }
 
   *{box-sizing:border-box; margin:0; padding:0;}
-  html{scroll-behavior:smooth;}
+  html{scroll-behavior:auto;}
   body{
     background:var(--bg);
     color:var(--text);
@@ -893,16 +893,34 @@
 
   // In-page navigation: scroll manually instead of native anchor navigation.
   // (Some preview/sandboxed contexts block top-frame navigation to a new URL
-  // entirely, which would otherwise make every "#section" link a no-op.)
+  // entirely, which would otherwise make every "#section" link a no-op. A
+  // fixed-duration rAF scroll also keeps long jumps fast and consistent,
+  // instead of the browser's distance-scaled native smooth scroll.)
+  function scrollToY(targetY, duration){
+    const startY = window.scrollY;
+    const diff = targetY - startY;
+    if(reduceMotion || Math.abs(diff) < 2){ window.scrollTo(0, targetY); return; }
+    const start = performance.now();
+    (function step(now){
+      const t = Math.min((now - start) / duration, 1);
+      const eased = t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2) / 2;
+      window.scrollTo(0, startY + diff * eased);
+      if(t < 1) requestAnimationFrame(step);
+    })(start);
+  }
   document.querySelectorAll('a[href^="#"]').forEach(a => {
     a.addEventListener('click', (e) => {
       const id = a.getAttribute('href').slice(1);
       const target = id ? document.getElementById(id) : null;
       if(!target) return;
       e.preventDefault();
+      // Reveal the destination immediately so headings/cards aren't still
+      // fading in after a fast jump straight to that section.
+      target.querySelectorAll('.reveal').forEach(el => el.classList.add('in'));
+      if(target.classList.contains('reveal')) target.classList.add('in');
       const offset = (header ? header.offsetHeight : 0) + 16;
-      const y = target.getBoundingClientRect().top + window.scrollY - offset;
-      window.scrollTo({ top: Math.max(y, 0), behavior: reduceMotion ? 'auto' : 'smooth' });
+      const y = Math.max(target.getBoundingClientRect().top + window.scrollY - offset, 0);
+      scrollToY(y, 600);
       try{ history.replaceState(null, '', '#' + id); }catch(err){}
     });
   });
