@@ -908,6 +908,15 @@
       if(t < 1) requestAnimationFrame(step);
     })(start);
   }
+  // Absolute document position via the offsetTop/offsetParent chain, which
+  // (unlike getBoundingClientRect) ignores CSS transforms — so it isn't
+  // thrown off by the reveal animation's translateY/scale while it's
+  // still mid-transition right after we flip its class below.
+  function docTop(el){
+    let y = 0;
+    while(el){ y += el.offsetTop; el = el.offsetParent; }
+    return y;
+  }
   document.querySelectorAll('a[href^="#"]').forEach(a => {
     a.addEventListener('click', (e) => {
       const id = a.getAttribute('href').slice(1);
@@ -918,8 +927,13 @@
       // fading in after a fast jump straight to that section.
       target.querySelectorAll('.reveal').forEach(el => el.classList.add('in'));
       if(target.classList.contains('reveal')) target.classList.add('in');
+      // Sections carry a large top padding for breathing room; scrolling to
+      // the section's own edge leaves that empty space at the top of the
+      // screen with the heading still below the fold. Land on the heading
+      // block itself instead, so it sits right under the header.
+      const anchor = id === 'top' ? null : (target.querySelector('.section-head') || target);
       const offset = (header ? header.offsetHeight : 0) + 16;
-      const y = Math.max(target.getBoundingClientRect().top + window.scrollY - offset, 0);
+      const y = anchor ? Math.max(docTop(anchor) - offset, 0) : 0;
       scrollToY(y, 600);
       try{ history.replaceState(null, '', '#' + id); }catch(err){}
     });
